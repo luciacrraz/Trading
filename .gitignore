@@ -50,5 +50,4 @@ wheels/
 .installed.cfg
 *.egg
 
-data/
 .DS_Store
