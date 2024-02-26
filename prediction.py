@@ -1,6 +1,6 @@
 def def_trading_strategy(data, n_shares, stop_loss_close, take_profit_close, Umbral, Indicador):
-    cash= 1_000_000
-    com = 0.125/100
+    cash = 1_000_000
+    com = 0.125 / 100
     history = []
     portfolio_value = []
     active_operations = []
@@ -13,25 +13,27 @@ def def_trading_strategy(data, n_shares, stop_loss_close, take_profit_close, Umb
             if operation["stop_loss"] > row.Close:
                 cash += (row.Close * operation["n_shares"]) * (1 - com)
                 # Calcular la ganancia o pérdida y actualizar el total
-                profit_loss = (row.Close * operation["n_shares"]) * (1 - com) - (operation["bought"] * operation["n_shares"])
+                profit_loss = (row.Close * operation["n_shares"]) * (1 - com) - (
+                            operation["bought"] * operation["n_shares"])
                 total_profit_loss += profit_loss
                 history.append({"timestamp": row.Timestamp, "profit_loss": profit_loss})
             elif operation["take_profit"] < row.Close:
                 cash += (row.Close * operation["n_shares"]) * (1 - com)
                 # Calcular la ganancia o pérdida y actualizar el total
-                profit_loss = (row.Close * operation["n_shares"]) * (1 - com) - (operation["bought"] * operation["n_shares"])
+                profit_loss = (row.Close * operation["n_shares"]) * (1 - com) - (
+                            operation["bought"] * operation["n_shares"])
                 total_profit_loss += profit_loss
                 history.append({"timestamp": row.Timestamp, "profit_loss": profit_loss})
             else:
                 active_op_temp.append(operation)
         active_operations = active_op_temp
-            
+
         # ¿Tenemos suficiente efectivo?
         if cash < (row.Close * n_shares * (1 + com)):
             asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
             portfolio_value.append(cash + asset_vals)
             continue
-        
+
         # Analizar la señal larga
         if Indicador[i] <= Umbral:  # If ceil(Op)
             active_operations.append({
@@ -43,13 +45,12 @@ def def_trading_strategy(data, n_shares, stop_loss_close, take_profit_close, Umb
                 "take_profit": row.Close * take_profit_close
             })
             cash -= row.Close * n_shares * (1 + com)
-        
+
         asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
         portfolio_value.append(cash + asset_vals)
-    
-    return total_profit_loss
 
-import optuna
+    return total_profit_loss, portfolio_value, cash
+
 
 def objective(trial):
     # Define los rangos de búsqueda para los parámetros
@@ -60,5 +61,5 @@ def objective(trial):
 
     # Evalúa la función de trading con los parámetros sugeridos
     profit_loss = def_trading_strategy(data, n_shares, stop_loss_close, take_profit_close, Umbral)
-    
+
     return profit_loss  # Devuelve la métrica que se debe minimizar/maximizar
