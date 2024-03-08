@@ -44,3 +44,4 @@ Our project will deliver the following:
 
 Through meticulous analysis, testing, and optimization, our project endeavors to uncover the most effective trading strategies. By leveraging technical analysis indicators and employing advanced optimization techniques, we aim to enhance trading performance and gain valuable insights into successful trading strategies.
 
+gitgit
