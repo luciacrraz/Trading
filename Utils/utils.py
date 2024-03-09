@@ -21,8 +21,8 @@ warnings.filterwarnings("ignore")
 def candle_chart(file_path: str):
     warnings.filterwarnings("ignore")
     df = pd.read_csv(file_path)
-    df['Datetime'] = pd.to_datetime(df['Datetime'])  # Cambio aquí el nombre de la columna
-    df.set_index('Datetime', inplace=True)  # Cambio aquí el nombre de la columna
+    df['Date'] = pd.to_datetime(df['Date'])  # Cambio aquí el nombre de la columna
+    df.set_index('Date', inplace=True)  # Cambio aquí el nombre de la columna
     return mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
 
 def file_features(data, ds_type: str):
@@ -119,7 +119,6 @@ def plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_lon
     buy_sell_xgboost['pred_xg_buy'] = global_buy_signals['predicciones_xgboost']
     buy_sell_xgboost['pred_xg_sell'] = global_sell_signals['predicciones_xgboost']
     buy_sell_xgboost['Close'] = data_test_long['Close_Lag0']
-
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(buy_sell_xgboost['Close'], label='Precio de Cierre', color='black')
     ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_buy']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_buy']], marker='^', color='r', label='Compra')
@@ -131,27 +130,138 @@ def plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_lon
     plt.grid(True)
     plt.show()
 
-def calcular_beneficio_perdida(dataset, cantidad_inicial, comision_transaccion):
-    num_filas = len(dataset)
-    if num_filas < 2:
-        print("El dataset debe tener al menos dos filas para calcular el beneficio o la pérdida.")
-        return None
-    precio_primera_transaccion = dataset.loc[0, 'Close']
-    precio_ultima_transaccion = dataset.loc[num_filas - 1, 'Close']
-    acciones_compradas = cantidad_inicial // precio_primera_transaccion
-    valor_total_comprado = acciones_compradas * precio_primera_transaccion - comision_transaccion
-    valor_total_vendido = acciones_compradas * precio_ultima_transaccion - comision_transaccion
-    beneficio_perdida = valor_total_vendido - valor_total_comprado
-    return print(f"Beneficio/perdida total: {beneficio_perdida}")
+def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
+    history = []
+    active_operations = []
+    cash = 1_000_000
+    com = 1.25 / 100
+    portfolio_values = []
+    cash_values = []
+    operations_history = []
 
-file_path = "../data/aapl_1m_test.csv"
+    for i, row in data.iterrows():
+        # close active operation
+        active_op_temp = []
+        for operation in active_operations:
+            if operation["stop_loss"] > row.Close:
+                cash += (row.Close * operation["n_shares"]) * (1 - com)
+                operations_history.append((i, row.Close, "stop_loss", operation["n_shares"]))
+            elif operation["take_profit"] < row.Close:
+                cash += (row.Close * operation["n_shares"]) * (1 - com)
+                operations_history.append((i, row.Close, "take_profit", operation["n_shares"]))
+            else:
+                active_op_temp.append(operation)
+        active_operations = active_op_temp
+
+        # check if we have enough cash
+        if cash < (row.Close * (1 + com)):
+            asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
+            portfolio_value = cash + asset_vals
+            portfolio_values.append(portfolio_value)
+            cash_values.append(cash)
+            continue
+
+        # Apply buy signals
+        if buy_signals.loc[i].any():
+            active_operations.append({
+                "bought": row.Close,
+                "n_shares": n_shares,
+                "stop_loss": row.Close * stop_loss,
+                "take_profit": row.Close * take_profit
+            })
+
+            cash -= row.Close * (1 + com) * n_shares
+            operations_history.append((i, row.Close, "buy", n_shares))
+
+        # Apply sell signals
+        if sell_signals.loc[i].any():
+            active_op_temp = []
+            for operation in active_operations:
+                if operation["take_profit"] < row.Close or operation["stop_loss"] > row.Close:
+                    cash += (row.Close * operation["n_shares"]) * (1 - com)
+                    operations_history.append((i, row.Close, "sell", operation["n_shares"]))
+                else:
+                    active_op_temp.append(operation)
+            active_operations = active_op_temp
+
+        asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
+        portfolio_value = cash + asset_vals
+        portfolio_values.append(portfolio_value)
+        cash_values.append(cash)
+
+    return portfolio_values, cash_values, operations_history
+
+def data_fun(file_path: str):
+    data = pd.read_csv(file_path)
+    data = data.dropna()
+    data = data.drop(data.index[:30])
+    data = data.drop(data.index[-30:])
+    data.reset_index(drop=True, inplace=True)
+    return data
+
+def plot_operations_history(operations_history):
+    data = operations_history[:35]
+    transacciones = [t[0] for t in data]
+    precios = [t[1] for t in data]
+    acciones = [t[2] for t in data]
+    identificadores = [t[3] for t in data]
+    # Graficar los precios
+    plt.figure(figsize=(10, 6))
+    plt.plot(precios, label='Precio', marker='o', color='blue', linestyle='-')
+    # Etiquetar las acciones en los puntos correspondientes
+    for i, accion in enumerate(acciones):
+        plt.text(i, precios[i], accion, fontsize=9, ha='right', va='bottom', rotation=45)
+    # Etiquetas y título
+    plt.xlabel('Transacción')
+    plt.ylabel('Precio')
+    plt.title('Gráfico de precios con acciones asociadas')
+    # Mostrar leyenda
+    plt.legend()
+    # Mostrar la gráfica
+    plt.grid(True)
+    plt.show()
+
+def port_value_plot(portfolio_values):
+    periodo_tiempo = range(1, len(portfolio_values) + 1)
+    # Graficar los valores del portafolio
+    plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
+    # Etiquetas de los ejes
+    plt.xlabel('Periodo de Tiempo')
+    plt.ylabel('Valor del Portafolio')
+    # Título del gráfico
+    plt.title('Evolución del Valor del Portafolio')
+    # Mostrar la gráfica
+    plt.grid(True)
+    plt.show()
+
+def plot_cash(cash_values):
+    periodo_tiempo = range(1, len(cash_values) + 1)
+    # Graficar los valores del portafolio
+    plt.plot(periodo_tiempo, cash_values, marker='o', linestyle='-')
+    # Etiquetas de los ejes
+    plt.xlabel('Periodo de Tiempo')
+    plt.ylabel('Valor del Portafolio')
+    # Título del gráfico
+    plt.title('Dinero atraves del Tiempo')
+    # Mostrar la gráfica
+    plt.grid(True)
+    plt.show()
+
+def cash_portvalue_plot(cash_values, portfolio_values):
+    plt.plot(cash_values, label='Cash')
+    plt.plot(portfolio_values, label='Portfolio Value')
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.title('Cash and Portfolio Value over Time')
+    plt.legend()
+    plt.show()
+
+file_path = "../data/aapl_1d_test.csv"
 # explicar el data set
 data_1m_test = pd.read_csv(file_path)
 data_1m_test = data_1m_test.dropna()
 # grafica de vela del precio close sin hacer nada
 candle_test = candle_chart(file_path)
-# beneficio o perdida de estrategia pasiva
-resultado = calcular_beneficio_perdida(data_1m_test, 1_000_000, 1.25/100)
 # variables que usamos para la prediccion
 data_test_long = file_features(data_1m_test, ds_type="buy")
 data_test_buy = file_features(data_1m_test, ds_type="sell")
@@ -160,3 +270,15 @@ global_buy_signals = buy_signals(data_test_long)
 global_sell_signals = sell_signals(data_test_buy)
 # grafica de compra venta conforme al precio de cierre
 plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_long)
+#data para el backtest
+data_1m = data_fun(file_path)
+# valores del portafolio, dinero y parametros
+portfolio_values, cash_values, operations_history,  = backtest(data_1m, global_buy_signals["predicciones_xgboost"], global_sell_signals["predicciones_xgboost"], 0.88, 1.05, 39)
+# grafica con las operaciones
+plot_operations = plot_operations_history(operations_history)
+# grafica con el dinero atraves del tiempo
+cash_plot = plot_cash(cash_values)
+#grafica con el valor del portafolio atraves del tiempo
+plot_port_value = port_value_plot(portfolio_values)
+# grafica comparando el dinero con el portafolio
+cash_port = cash_portvalue_plot(cash_values, portfolio_values)
