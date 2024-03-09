@@ -1,7 +1,7 @@
 from multiprocessing import Pool
 import optuna
 
-from technical_analysis.optimization import optimize_file
+from optimization import optimize_file
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
