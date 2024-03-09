@@ -11,6 +11,11 @@ def candle_chart(file_path: str):
     df.set_index('Date', inplace=True)
     return mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
 
-candle = candle_chart('../data/aapl_1d_train.csv')
+
+
+
+
+
+
 
 
