@@ -220,3 +220,5 @@ def optimize_file(data):
             "params": best_params}
 
 file_1m_test = optimize_file(data_1m_test)
+print(file_1m_test)
+

@@ -18,16 +18,12 @@ import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 
-data_1m_test = pd.read_csv("aapl_1d_train.csv")
-data_1m_test = data_1m_test.dropna()
 def candle_chart(file_path: str):
     warnings.filterwarnings("ignore")
     df = pd.read_csv(file_path)
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.set_index('Date', inplace=True)
+    df['Datetime'] = pd.to_datetime(df['Datetime'])  # Cambio aquí el nombre de la columna
+    df.set_index('Datetime', inplace=True)  # Cambio aquí el nombre de la columna
     return mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
-
-candle_test = candle_chart("../data/aapl_1m_test.csv")
 
 def file_features(data, ds_type: str):
     data1 = pd.DataFrame()
@@ -54,9 +50,6 @@ def file_features(data, ds_type: str):
     data1.reset_index(drop=True, inplace=True)
 
     return data1
-
-data_test_long = file_features("../data/aapl_1m_test.csv", ds_type="buy")
-data_test_buy = file_features("../data/aapl_1m_test.csv", ds_type="sell")
 
 def buy_signals(data):
     buy_signals = pd.DataFrame()
@@ -121,31 +114,49 @@ def sell_signals(data):
 
     return sell_signals
 
+def plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_long):
+    buy_sell_xgboost = pd.DataFrame()
+    buy_sell_xgboost['pred_xg_buy'] = global_buy_signals['predicciones_xgboost']
+    buy_sell_xgboost['pred_xg_sell'] = global_sell_signals['predicciones_xgboost']
+    buy_sell_xgboost['Close'] = data_test_long['Close_Lag0']
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(buy_sell_xgboost['Close'], label='Precio de Cierre', color='black')
+    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_buy']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_buy']], marker='^', color='r', label='Compra')
+    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_sell']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_sell']], marker='v', color='g', label='Venta')
+    ax.set_title('Señales de Compra y Venta')
+    ax.set_xlabel('Índice de Tiempo')
+    ax.set_ylabel('Precio')
+    ax.legend()
+    plt.grid(True)
+    plt.show()
+
+def calcular_beneficio_perdida(dataset, cantidad_inicial, comision_transaccion):
+    num_filas = len(dataset)
+    if num_filas < 2:
+        print("El dataset debe tener al menos dos filas para calcular el beneficio o la pérdida.")
+        return None
+    precio_primera_transaccion = dataset.loc[0, 'Close']
+    precio_ultima_transaccion = dataset.loc[num_filas - 1, 'Close']
+    acciones_compradas = cantidad_inicial // precio_primera_transaccion
+    valor_total_comprado = acciones_compradas * precio_primera_transaccion - comision_transaccion
+    valor_total_vendido = acciones_compradas * precio_ultima_transaccion - comision_transaccion
+    beneficio_perdida = valor_total_vendido - valor_total_comprado
+    return print(f"Beneficio/perdida total: {beneficio_perdida}")
+
+file_path = "../data/aapl_1m_test.csv"
+# explicar el data set
+data_1m_test = pd.read_csv(file_path)
+data_1m_test = data_1m_test.dropna()
+# grafica de vela del precio close sin hacer nada
+candle_test = candle_chart(file_path)
+# beneficio o perdida de estrategia pasiva
+resultado = calcular_beneficio_perdida(data_1m_test, 1_000_000, 1.25/100)
+# variables que usamos para la prediccion
+data_test_long = file_features(data_1m_test, ds_type="buy")
+data_test_buy = file_features(data_1m_test, ds_type="sell")
+# dataframes de senales de compra
 global_buy_signals = buy_signals(data_test_long)
 global_sell_signals = sell_signals(data_test_buy)
-
-buy_sell_xgboost = pd.DataFrame()
-buy_sell_xgboost['pred_xg_buy'] = global_buy_signals['predicciones_xgboost']
-buy_sell_xgboost['pred_xg_sell'] = global_sell_signals['predicciones_xgboost']
-buy_sell_xgboost['Close'] = data_test_long['Close_Lag0']
-
-# Crear una figura y un conjunto de ejes
-fig, ax = plt.subplots(figsize=(10, 6))
-
-# Graficar el precio de cierre
-ax.plot(buy_sell_xgboost['Close'], label='Precio de Cierre', color='black')
-
-# Marcar las señales de compra y venta
-ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_buy']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_buy']], marker='^', color='r', label='Compra')
-ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_sell']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_sell']], marker='v', color='g', label='Venta')
-
-# Agregar leyendas, títulos, y etiquetas de ejes
-ax.set_title('Señales de Compra y Venta')
-ax.set_xlabel('Índice de Tiempo')
-ax.set_ylabel('Precio')
-ax.legend()
-
-# Mostrar el gráfico
-plt.grid(True)
-plt.show()
-#("../data/aapl_1m_test.csv")
+# grafica de compra venta conforme al precio de cierre
+plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_long)
