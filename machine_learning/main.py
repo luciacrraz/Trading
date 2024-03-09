@@ -15,9 +15,8 @@ from sklearn.metrics import accuracy_score
 import warnings
 warnings.filterwarnings("ignore")
 
-data_1m = pd.read_csv("../data/aapl_1m_test.csv")
-data_1m = data_1m.dropna()
-data_1m.reset_index(drop=True, inplace=True)
+data_1m_test = pd.read_csv("../data/aapl_1m_test.csv")
+data_1m_test = data_1m_test.dropna()
 
 def powerset(s):
     return chain.from_iterable(combinations(s,r) for r in range(1,len(s)+1))
@@ -49,153 +48,8 @@ def file_features(data, ds_type: str):
 
     return data1
 
-dataresult_long_1m = file_features(data_1m, ds_type="buy")
-dataresult_short_1m = file_features(data_1m, ds_type="sell")
-dataresult_short_1m
-
-
-def objective_log_regresor(trial, data):
-    # Dividir los datos en conjuntos de entrenamiento y prueba
-    X = data.iloc[:, :-1]
-    # Selecciona la variable objetivo
-    y = data.iloc[:, -1]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    # Definir los parámetros a optimizar
-    penalty = trial.suggest_categorical('penalty', ['l1', 'l2'])
-    C = trial.suggest_loguniform('C', 0.001, 1000)
-    solver = trial.suggest_categorical('solver', ['liblinear', 'saga'])
-
-    # Crear el modelo de regresión logística con los parámetros sugeridos
-    model = LogisticRegression(penalty=penalty, C=C, solver=solver, max_iter=10_000, random_state=123)
-    # Entrenar el modelo
-    model.fit(X_train, y_train)
-    # Calcular la precisión en el conjunto de prueba
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    return accuracy
-
-def objective_svm(trial, data):
-    # Dividir los datos en conjuntos de entrenamiento y prueba
-    X = data.iloc[:, :-1]
-    # Selecciona la variable objetivo
-    y = data.iloc[:, -1]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    # Definir los parámetros a optimizar
-    C = trial.suggest_loguniform('C', 0.001, 1000)
-    kernel = trial.suggest_categorical('kernel', ['linear', 'poly', 'rbf', 'sigmoid'])
-    if kernel == 'poly':
-        degree = trial.suggest_int('degree', 2, 5)
-    else:
-        degree = 3  # Valor predeterminado si el kernel no es 'poly'
-    gamma = trial.suggest_categorical('gamma', ['scale', 'auto']) if kernel in ['rbf', 'poly', 'sigmoid'] else 'scale'
-    # Crear el modelo SVM con los parámetros sugeridos
-    model = SVC(C=C, kernel=kernel, degree=degree, gamma=gamma, max_iter=100_000, random_state=123)
-    # Entrenar el modelo
-    model.fit(X_train, y_train)
-    # Calcular la precisión en el conjunto de prueba
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    return accuracy
-
-def objective_xgboost(trial, data):
-    data = data.copy()
-    # Dividir los datos en conjuntos de entrenamiento y prueba
-    X = data.iloc[:, :-1]
-    # Selecciona la variable objetivo
-    y = data.iloc[:, -1]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-    # Definir los parámetros a optimizar
-    n_estimators = trial.suggest_int('n_estimators', 100, 1000, step=100)
-    max_depth = trial.suggest_int('max_depth', 3, 10)
-    learning_rate = trial.suggest_loguniform('learning_rate', 0.01, 0.5)
-    subsample = trial.suggest_discrete_uniform('subsample', 0.5, 1.0, 0.1)
-    colsample_bytree = trial.suggest_discrete_uniform('colsample_bytree', 0.5, 1.0, 0.1)
-    # Crear el modelo XGBoost con los parámetros sugeridos
-    model = XGBClassifier(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        learning_rate=learning_rate,
-        subsample=subsample,
-        colsample_bytree=colsample_bytree,
-        random_state=123
-    )
-    # Entrenar el modelo
-    model.fit(X_train, y_train)
-    # Calcular la precisión en el conjunto de prueba
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    return accuracy
-
-
-def optimize_params_log_regresor(data):
-    # Crear un estudio Optuna para la optimización
-    study = optuna.create_study(direction='maximize')
-
-    # Función objetivo con el dataset como parámetro fijo
-    objective_fn = lambda trial: objective_log_regresor(trial, data)
-
-    # Ejecutar la optimización
-    study.optimize(objective_fn, n_trials=2)
-
-    # Obtener los mejores parámetros
-    best_params = study.best_params
-    best_accuracy = study.best_value
-
-    return best_params, best_accuracy
-
-
-def optimize_params_svm(data):
-    # Crear un estudio Optuna para la optimización
-    study = optuna.create_study(direction='maximize')
-
-    # Función objetivo con el dataset como parámetro fijo
-    objective_fn = lambda trial: objective_svm(trial, data)
-
-    # Ejecutar la optimización
-    study.optimize(objective_fn, n_trials=2)
-
-    # Obtener los mejores parámetros
-    best_params = study.best_params
-    best_accuracy = study.best_value
-
-    return best_params, best_accuracy
-
-
-def optimize_params_xgboost(data):
-    # Crear un estudio Optuna para la optimización
-    study = optuna.create_study(direction='maximize')
-
-    # Función objetivo con el dataset como parámetro fijo
-    objective_fn = lambda trial: objective_xgboost(trial, data)
-
-    # Ejecutar la optimización
-    study.optimize(objective_fn, n_trials=2)
-
-    # Obtener los mejores parámetros
-    best_params = study.best_params
-    best_accuracy = study.best_value
-
-    return best_params, best_accuracy
-
-def optimize_params(data):
-    # Optimización de regresión logística
-    best_params_lr, best_accuracy_lr = optimize_params_log_regresor(data)
-    print("Mejores parámetros de regresión logística:", best_params_lr)
-    print("Precisión del modelo de regresión logística:", best_accuracy_lr)
-    # Optimización de SVM
-    best_params_svm, best_accuracy_svm = optimize_params_svm(data)
-    print("Mejores parámetros de SVM:", best_params_svm)
-    print("Precisión del modelo de SVM:", best_accuracy_svm)
-    # Optimización de XGBoost
-    best_params_xgb, best_accuracy_xgb = optimize_params_xgboost(data)
-    print("Mejores parámetros de XGBoost:", best_params_xgb)
-    print("Precisión del modelo de XGBoost:", best_accuracy_xgb)
-
-params_1m_long = optimize_params(dataresult_long_1m)
-params_1m_short = optimize_params(dataresult_short_1m)
-
+dataresult_long_1m_test = file_features(data_1m_test, ds_type="buy")
+dataresult_short_1m_test = file_features(data_1m_test, ds_type="sell")
 
 def buy_signals(data):
     buy_signals = pd.DataFrame()
@@ -226,7 +80,6 @@ def buy_signals(data):
     buy_signals['predicciones_xgboost'] = predictions_xgboost
 
     return buy_signals
-
 
 def sell_signals(data):
     sell_signals = pd.DataFrame()
@@ -259,8 +112,8 @@ def sell_signals(data):
 
     return sell_signals
 
-global_buy_signals = buy_signals(dataresult_long_1m)
-global_sell_signals = sell_signals(dataresult_short_1m)
+global_buy_signals = buy_signals(dataresult_long_1m_test)
+global_sell_signals = sell_signals(dataresult_short_1m_test)
 
 
 def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
@@ -291,7 +144,7 @@ def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
         if buy_signals.loc[i].any():
             active_operations.append({
                 "bought": row.Close,
-                "n_shares": float(n_shares),
+                "n_shares": n_shares,
                 "stop_loss": row.Close * stop_loss,
                 "take_profit": row.Close * take_profit
             })
@@ -311,7 +164,7 @@ def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
         asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
         portfolio_value = cash + asset_vals
 
-    return portfolio_value, active_operations
+    return portfolio_value
 
 
 def optimize(trial, strategy, data):
@@ -319,7 +172,7 @@ def optimize(trial, strategy, data):
 
     stop_loss = trial.suggest_float("stop_loss", 0.00250, 0.05)
     take_profit = trial.suggest_float("take_profit", 0.00250, 0.05)
-    n_shares = float(trial.suggest_int("n_shares", 5.0, 200.0))
+    n_shares = trial.suggest_int("n_shares", 5, 200)
 
     strat_params = {}
 
@@ -366,4 +219,4 @@ def optimize_file(data):
             "value": best_val,
             "params": best_params}
 
-file_1m = optimize_file(data_1m)
+file_1m_test = optimize_file(data_1m_test)
