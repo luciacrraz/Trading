@@ -256,6 +256,15 @@ def cash_portvalue_plot(cash_values, portfolio_values):
     plt.legend()
     plt.show()
 
+def pasive_portvalue_plot(portfolio_values):
+    plt.plot(portfolio_values, label='Portfolio Value')
+    plt.plot([0,700], [1000000,1000000], label="Pasive_Strategy")
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.title('Estrategia Pasiva VS Estrategia Trading')
+    plt.legend()
+    plt.show()
+
 file_path = "data/aapl_1d_test.csv"
 # explicar el data set
 data_1m_test = pd.read_csv(file_path)
@@ -282,3 +291,5 @@ cash_plot = plot_cash(cash_values)
 plot_port_value = port_value_plot(portfolio_values)
 # grafica comparando el dinero con el portafolio
 cash_port = cash_portvalue_plot(cash_values, portfolio_values)
+#comparacion con estrategia pasiva:
+comparacion = pasive_portvalue_plot(portfolio_values)
