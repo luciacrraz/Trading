@@ -2,21 +2,126 @@ import mplfinance as mpf
 import pandas as pd
 import ta
 import optuna
-import time
-import numpy as np
-from multiprocessing import Pool
 from itertools import combinations, chain
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score
 import warnings
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
+class Position:
+    def __init__(self, timestamp, order_type, n_shares, stop_at, take_at, bought_at):
+        self.timestamp = timestamp
+        self.order_type = order_type
+        self.n_shares = n_shares
+        self.stop_at = stop_at
+        self.take_at = take_at
+        self.bought_at = bought_at
+def powerset(s):
+    return chain.from_iterable(combinations(s,r) for r in range(1,len(s)+1))
+
+
+def rsi_signals(data, rsi_window, rsi_upper, rsi_lower):
+    indicator_rsi = ta.momentum.RSIIndicator(close=data["Close"], window=rsi_window)
+    buy_signal = indicator_rsi.rsi() < rsi_lower
+    sell_signal = indicator_rsi.rsi() > rsi_upper
+    return buy_signal, sell_signal
+
+def roc_signals(data, roc_window, roc_upper, roc_lower):
+    indicator_roc = ta.momentum.ROCIndicator(close=data["Close"], window=roc_window)
+    buy_signal = indicator_roc.roc() > roc_lower
+    sell_signal = indicator_roc.roc() < roc_upper
+    return buy_signal, sell_signal
+
+def tsi_signals(data, tsi_window_slow, tsi_window_fast, tsi_upper, tsi_lower):
+    indicator_tsi = ta.momentum.TSIIndicator(close=data['Close'], window_slow=tsi_window_slow, window_fast=tsi_window_fast)
+    buy_signal = indicator_tsi.tsi() > tsi_lower
+    sell_signal = indicator_tsi.tsi() < tsi_upper
+    return buy_signal, sell_signal
+
+def stochastic_signals(data, stoch_window, stoch_smooth_window, stoch_upper, stoch_lower):
+    indicator_stoch = ta.momentum.StochasticOscillator(close=data["Close"], high=data["High"], low=data["Low"], window=stoch_window, smooth_window=stoch_smooth_window)
+    buy_signal = indicator_stoch.stoch() < stoch_lower
+    sell_signal = indicator_stoch.stoch() > stoch_upper
+    return buy_signal, sell_signal
+
+def optimize(trial, strategy, data):
+    stop_loss = trial.suggest_float("stop_loss", 0.00250, 0.05)
+    take_profit = trial.suggest_float("take_profit", 0.00250, 0.05)
+    n_shares = trial.suggest_int("n_shares", 5, 200)
+    strat_params = {}
+    buy_signals = pd.DataFrame()
+    sell_signals = pd.DataFrame()
+    if 'rsi' in strategy:
+        strat_params['rsi'] = {
+            "rsi_window":trial.suggest_int("rsi_window", 5,100),
+            "rsi_upper": trial.suggest_float("rsi_upper", 65, 95),
+            "rsi_lower": trial.suggest_float("rsi_lower", 5, 35)
+
+        }
+        rsi_buy, rsi_sell = rsi_signals(data, **strat_params["rsi"])
+        buy_signals["rsi"] = rsi_buy
+        sell_signals["rsi"] = rsi_sell
+
+    if 'roc' in strategy:
+        strat_params['roc'] = {
+            "roc_window": trial.suggest_int("roc_window", 5,100),
+            "roc_upper": trial.suggest_float("roc_upper", 0.8, 1.5),
+            "roc_lower": trial.suggest_float("roc_lower", -2, -1)
+
+        }
+        roc_buy, roc_sell = roc_signals(data, **strat_params["roc"])
+        buy_signals["roc"] = roc_buy
+        sell_signals["roc"] = roc_sell
+    if 'tsi' in strategy:
+        strat_params['tsi'] = {
+            "tsi_window": trial.suggest_int("tsi_window", 5,100),
+            "tsi_upper": trial.suggest_float("tsi_upper", 25, 45),
+            "tsi_lower": trial.suggest_float("tsi_lower", -40, -20)
+
+        }
+        tsi_buy, tsi_sell = tsi_signals(data, **strat_params["tsi"])
+        buy_signals["tsi"] = tsi_buy
+        sell_signals["tsi"] = tsi_sell
+    if "stoch" in strategy:
+        strat_params['stoch'] = {
+            "stoch_window": trial.suggest_int("stoch_window", 5,100),
+            "stoch_upper": trial.suggest_float("stoch_upper", 70, 90),
+            "stoch_lower": trial.suggest_float("stoch_lower", 10, 30)
+
+        }
+        stoch_buy, stoch_sell = stochastic_signals(data, **strat_params["stoch"])
+        buy_signals["stoch"] = stoch_buy
+        sell_signals["stoch"] = stoch_sell
+    return (backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares), len(buy_signals[buy_signals == True]))
+
+
+
+def optimize_file(file_path: str):
+    data = pd.read_csv(file_path)
+    strategies = list(powerset(["rsi", "roc", "tsi", "stoch"]))
+    best_strat = None
+    best_val = -1
+    best_params = None
+    for strat in strategies:
+        study = optuna.create_study
+        study.optimize(lambda x: optimize(x, strat, data), n_trials=50)
+        value = study.best_value
+        if study.best_value > best_val:
+            best_val = study.best_value
+            best_strat = strat
+            best_params = study.best_params
+    print(study.best_value)
+    print(best_strat)
+    print(best_params)
+
+    return {"file": file_path,
+            "strat": best_strat,
+            "value": best_val,
+            "params": best_params}
+
+
 
 def candle_chart(file_path: str):
     warnings.filterwarnings("ignore")
@@ -256,6 +361,15 @@ def cash_portvalue_plot(cash_values, portfolio_values):
     plt.legend()
     plt.show()
 
+def pasive_portvalue_plot(portfolio_values):
+    plt.plot(portfolio_values, label='Portfolio Value')
+    plt.plot([0,700], [1000000,1000000], label="Pasive_Strategy")
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.title('Estrategia Pasiva VS Estrategia Trading')
+    plt.legend()
+    plt.show()
+
 file_path = "../data/aapl_1d_test.csv"
 # explicar el data set
 data_1m_test = pd.read_csv(file_path)
@@ -282,3 +396,5 @@ cash_plot = plot_cash(cash_values)
 plot_port_value = port_value_plot(portfolio_values)
 # grafica comparando el dinero con el portafolio
 cash_port = cash_portvalue_plot(cash_values, portfolio_values)
+#comparacion con estrategia pasiva:
+comparacion = pasive_portvalue_plot(portfolio_values)

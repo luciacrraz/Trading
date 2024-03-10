@@ -2,7 +2,7 @@ import pandas as pd
 import optuna
 from itertools import combinations, chain
 
-from technical_analysis.signals import stoch_signals, tsi_signals, roc_signals, rsi_signals
+from signals import stoch_signals, tsi_signals, roc_signals, rsi_signals
 
 
 class Position:
