@@ -377,7 +377,7 @@ def pasive_portvalue_plot(portfolio_values):
     plt.legend()
     plt.show()
 
-file_path = "data/aapl_1d_test.csv"
+file_path = "../data/aapl_1d_test.csv"
 # explicar el data set
 data_1m_test = pd.read_csv(file_path)
 data_1m_test = data_1m_test.dropna()
