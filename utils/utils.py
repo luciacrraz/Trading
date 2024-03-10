@@ -10,6 +10,7 @@ import warnings
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
+
 class Position:
     def __init__(self, timestamp, order_type, n_shares, stop_at, take_at, bought_at):
         self.timestamp = timestamp
@@ -331,7 +332,7 @@ def port_value_plot(portfolio_values):
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Periodo de Tiempo')
+    plt.xlabel('Indices')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Evolución del Valor del Portafolio')
@@ -344,7 +345,7 @@ def plot_cash(cash_values):
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, cash_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Periodo de Tiempo')
+    plt.xlabel('Operaciones')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Dinero atraves del Tiempo')
@@ -355,16 +356,22 @@ def plot_cash(cash_values):
 def cash_portvalue_plot(cash_values, portfolio_values):
     plt.plot(cash_values, label='Cash')
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.xlabel('Time')
+    plt.xlabel('Tiempo')
     plt.ylabel('Value')
     plt.title('Cash and Portfolio Value over Time')
     plt.legend()
     plt.show()
 
+
+
+
+
 def pasive_portvalue_plot(portfolio_values):
+    indice = len(portfolio_values) - 1
+
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.plot([0,700], [1000000,1000000], label="Pasive_Strategy")
-    plt.xlabel('Time')
+    plt.plot([0,indice], [1000000,1000000], label="Pasive_Strategy")
+    plt.xlabel('Indice')
     plt.ylabel('Value')
     plt.title('Estrategia Pasiva VS Estrategia Trading')
     plt.legend()
@@ -398,3 +405,4 @@ plot_port_value = port_value_plot(portfolio_values)
 cash_port = cash_portvalue_plot(cash_values, portfolio_values)
 #comparacion con estrategia pasiva:
 comparacion = pasive_portvalue_plot(portfolio_values)
+
