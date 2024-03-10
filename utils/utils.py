@@ -406,3 +406,35 @@ cash_port = cash_portvalue_plot(cash_values, portfolio_values)
 #comparacion con estrategia pasiva:
 comparacion = pasive_portvalue_plot(portfolio_values)
 
+#Definición de función para uso de la estrategia con los mejores parametros por métrica de tiempo
+
+def estrategia_pasiva_simple(data, valor_inicial):
+  valor_final = valor_inicial * data["Close"][len(data) - 1] / data["Close"][0]
+
+  # Retorno de resultados
+  return valor_final
+
+def estrategia(file, parametros):
+    nombre_archivo = file
+    data = pd.read_csv(nombre_archivo)
+    data = data.dropna()
+    #Generamos señales de compra/venta
+    rsi = ta.momentum.RSIIndicator(close=data['Close'], window=parametros['rsi_window'])
+    buy_signals = rsi.rsi() < parametros['rsi_lower']
+    sell_signals = rsi.rsi() > parametros['rsi_upper']
+    portfolio_values, cash_values, operations_history = backtest(data, buy_signals, sell_signals, parametros['stop_loss'], parametros['take_profit'], parametros['n_shares'])
+    return portfolio_values, cash_values, operations_history
+
+#Mejores parametros para 1 minuto
+best_strat_params_1m = {
+    'stop_loss': 0.007096326133500339,
+    'take_profit': 0.022369560033715867,
+    'n_shares': 137,
+    'rsi_window': 32,
+    'rsi_upper': 75.26069658353647,
+    'rsi_lower': 7.6399173124408195
+}
+portfolio_values, cash_values, operations_history= estrategia(file_path, best_strat_params_1m)
+data123 = pd.read_csv('data/aapl_1m_test.csv')
+valor_final_pasivo = estrategia_pasiva_simple(data123, 1000000)
+
