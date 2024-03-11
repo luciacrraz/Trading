@@ -10,7 +10,6 @@ import warnings
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
-
 class Position:
     def __init__(self, timestamp, order_type, n_shares, stop_at, take_at, bought_at):
         self.timestamp = timestamp
