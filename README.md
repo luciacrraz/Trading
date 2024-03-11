@@ -1,47 +1,91 @@
 # Trading Strategy Optimization Project
 
-Welcome to our Trading Strategy Optimization Project! This project is dedicated to developing and optimizing trading strategies using technical analysis indicators across various timeframes. Our goal is to meticulously test and refine these strategies, ultimately comparing them against a passive approach using provided datasets.
+## Introduction
 
-## Project Objectives
+This project aims to develop and evaluate algorithmic trading strategies using two complementary approaches: technical analysis (TA) and machine learning (ML). By leveraging these methodologies, we seek to devise profitable strategies across various timeframes (1-day, 1-hour, 5-minute, and 1-minute) utilizing the provided AAPL datasets.
 
-Our project is structured around the following key objectives:
+## Project Structure
 
-1. **Data Preparation**: We begin by preparing datasets for different timeframes, crucial for training and validation purposes.
+The project follows a structured Python directory layout:
 
-2. **Indicator Selection**: Each team member carefully selects a technical indicator, contributing their expertise to our analysis.
-
-3. **Strategy Development**: Using the selected indicators, we define buy/sell signals and explore all possible combinations to construct robust trading strategies.
-
-4. **Backtesting and Optimization**: Through rigorous backtesting using training datasets, we optimize our strategies, employing various techniques to maximize profitability.
-
-5. **Optimal Strategy Description**: We meticulously document the selected optimal strategy, providing detailed insights into the indicators used and the criteria for trade signals.
-
-6. **Testing and Comparison**: Our optimized strategy is then put to the test using the provided test dataset, enabling us to compare its performance against a passive strategy.
-
-7. **Result Presentation**: The culmination of our efforts is presented in a comprehensive Jupyter notebook, showcasing our findings through operations lists, candlestick charts, and other crucial visualizations.
-
-## Trading Instructions
-
-To access specific components of our project, follow these instructions:
-
-1. **Results and Conclusions**: Simply run the code in "P2 Technical Analysis.ipynb". This notebook contains the theory behind our project, the indicators used, final parameters, buy/sell signals, and ultimate results and conclusions.
-
-2. **Step-by-Step Project Justification**:
-    2.1. Run the codes in the `technical_analysis` directory.
-    2.2. Execute the optimization codes (`1d`, `1h`, `1m`, `5m`), keeping in mind that these may take some time.
-    2.3. Run the codes in the `best_combinations` directory.
-    2.4. Upon running the previous codes, proceed to run those in the `preliminary_results` directory.
-    2.5. Finally, execute the code in the `final_results` directory, which contains the pure Jupyter notebook showcasing the project's main findings.
+- **LICENSE**: Defines the licensing terms for the project.
+- **README.md**: Offers an overview of the project, its structure, and instructions for running it.
+- **Report_ML.ipynb**: Jupyter notebook presenting results and conclusions from machine learning experiments.
+- **Report_TA.ipynb**: Jupyter notebook presenting results and conclusions from technical analysis experiments.
+- **data**: Directory containing training and testing datasets for AAPL in different timeframes (CSV format).
+  - **machine_learning**:
+    - **ML_Analysis.ipynb**: Jupyter notebook for machine learning analysis, including model training and hyperparameter tuning.
+    - **main.py**: Main script for machine learning workflows.
+  - **technical_analysis**:
+    - **backtest.py**: Script for backtesting trading strategies.
+    - **main.py**: Main script for technical analysis workflows.
+    - **optimization.py**: Script for optimizing technical indicator parameters and backtest configurations.
+    - **signals.py**: Script for defining buy/sell signals based on technical indicators.
+  - **utils**:
+    - **utils.py**: Contains utility functions used throughout the project.
 
 ## Deliverables
 
-Our project will deliver the following:
+### Delivery 1: Technical Analysis (TA)
 
-- **GitHub Repository**: A complete repository hosted on GitHub, providing transparency and accessibility to our work.
-- **Jupyter Notebook**: A detailed notebook presenting our results and conclusions in a clear and concise manner.
+#### Project Structure
 
-## Conclusion
+Follows the aforementioned structure.
 
-Through meticulous analysis, testing, and optimization, our project endeavors to uncover the most effective trading strategies. By leveraging technical analysis indicators and employing advanced optimization techniques, we aim to enhance trading performance and gain valuable insights into successful trading strategies.
+#### Data Preparation
 
-gitgit
+- Utilizes provided training and validation datasets (AAPL_1d, AAPL_1h, etc.).
+
+#### Technical Indicator Selection
+
+- Team members select various technical indicators (e.g., MACD, RSI) for analysis.
+
+#### Strategy Backtesting
+
+For each dataset timeframe:
+- Defines buy/sell signals based on selected technical indicators.
+- Generates all possible indicator combinations (2^n - 1).
+- Backtests these strategies, tracking operations, cash flow, and portfolio value.
+- Optimizes indicator parameters, stop-loss/take-profit levels, and trade volumes using algorithms like TPE and Grid Search.
+- Documents the optimal strategy thoroughly.
+- Compares the optimal strategy with a passive buy-and-hold strategy on the testing dataset.
+
+#### Results Presentation
+
+- Utilizes Jupyter notebook Report_TA.ipynb to present results and conclusions.
+- Includes:
+  - List of operations
+  - Candlestick charts with indicators
+  - Trading signals
+  - Cash/portfolio value over time
+  - Any other relevant charts or insights
+
+### Delivery 2: Machine Learning (ML)
+
+#### Project Structure
+
+Follows the aforementioned structure.
+
+#### Data Preparation
+
+- Utilizes provided training and validation datasets (AAPL_1d, AAPL_1h, etc.).
+- May incorporate additional technical indicators into the data.
+
+#### Model Selection
+
+- Conducts experiments with Logistic Regression, Support Vector Machine (SVM), and XGBoost models.
+
+#### Model Training and Evaluation
+
+- Splits the training data into training and validation sets.
+- Defines independent (features) and dependent (target) variables for model training.
+  - Constructs target variable based on next k-period price changes.
+- Fine-tunes hyperparameters for each model.
+- Evaluates model performance using appropriate metrics.
+
+#### Strategy Backtesting
+
+For each dataset timeframe:
+- Utilizes model predictions to generate buy/sell signals.
+- Generates all possible combinations of ML models (2^n - 1).
+- Backtests these strategies, tracking operations, cash flow, and portfolio value.
