@@ -331,7 +331,7 @@ def port_value_plot(portfolio_values):
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Periodo de Tiempo')
+    plt.xlabel('Indices')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Evolución del Valor del Portafolio')
@@ -344,7 +344,7 @@ def plot_cash(cash_values):
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, cash_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Periodo de Tiempo')
+    plt.xlabel('Operaciones')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Dinero atraves del Tiempo')
@@ -355,22 +355,28 @@ def plot_cash(cash_values):
 def cash_portvalue_plot(cash_values, portfolio_values):
     plt.plot(cash_values, label='Cash')
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.xlabel('Time')
+    plt.xlabel('Tiempo')
     plt.ylabel('Value')
     plt.title('Cash and Portfolio Value over Time')
     plt.legend()
     plt.show()
 
+
+
+
+
 def pasive_portvalue_plot(portfolio_values):
+    indice = len(portfolio_values) - 1
+
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.plot([0,700], [1000000,1000000], label="Pasive_Strategy")
-    plt.xlabel('Time')
+    plt.plot([0,indice], [1000000,1000000], label="Pasive_Strategy")
+    plt.xlabel('Indice')
     plt.ylabel('Value')
     plt.title('Estrategia Pasiva VS Estrategia Trading')
     plt.legend()
     plt.show()
 
-file_path = "../data/aapl_1d_test.csv"
+file_path = "data/aapl_1d_test.csv"
 # explicar el data set
 data_1m_test = pd.read_csv(file_path)
 data_1m_test = data_1m_test.dropna()
@@ -398,3 +404,146 @@ plot_port_value = port_value_plot(portfolio_values)
 cash_port = cash_portvalue_plot(cash_values, portfolio_values)
 #comparacion con estrategia pasiva:
 comparacion = pasive_portvalue_plot(portfolio_values)
+
+#Definición de función para uso de la estrategia con los mejores parametros por métrica de tiempo
+
+
+def rsi_signals(data, rsi_window, rsi_upper, rsi_lower):
+    indicator_rsi = ta.momentum.RSIIndicator(close=data["Close"], window=rsi_window)
+    buy_signal = indicator_rsi.rsi() < rsi_lower
+    sell_signal = indicator_rsi.rsi() > rsi_upper
+    return buy_signal, sell_signal
+
+
+def estrategia(file_path, parametros):
+    data = pd.read_csv(file_path2)
+    data = data.dropna()
+    buy_signals = pd.DataFrame()
+    sell_signals = pd.DataFrame()
+    #Generamos señales de compra/venta
+    rsi = ta.momentum.RSIIndicator(close=data['Close'], window=parametros['rsi_window'])
+    buy_signals = rsi.rsi() < parametros['rsi_lower']
+    sell_signals = rsi.rsi() > parametros['rsi_upper']
+    history = []
+    active_operations = []
+    cash = 1_000_000
+    com = 1.25 / 100
+    portfolio_values = []
+    cash_values = []
+    operations_history = []
+
+    for i, row in data.iterrows():
+        # close active operation
+        active_op_temp = []
+        for operation in active_operations:
+            if operation["stop_loss"] > row.Close:
+                cash += (row.Close * operation["n_shares"]) * (1 - com)
+                operations_history.append((i, row.Close, "stop_loss", operation[parametros["n_shares"]]))
+            elif operation["take_profit"] < row.Close:
+                cash += (row.Close * operation["n_shares"]) * (1 - com)
+                operations_history.append((i, row.Close, parametros["take_profit"], operation["n_shares"]))
+            else:
+                active_op_temp.append(operation)
+        active_operations = active_op_temp
+
+        # check if we have enough cash
+        if cash < (row.Close * (1 + com)):
+            asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
+            portfolio_value = cash + asset_vals
+            portfolio_values.append(portfolio_value)
+            cash_values.append(cash)
+            continue
+
+        # Apply buy signals
+        if buy_signals.loc[i].any():
+            active_operations.append({
+                "bought": row.Close,
+                "n_shares": parametros['n_shares'],
+                "stop_loss": row.Close * parametros['stop_loss'],
+                "take_profit": row.Close * parametros['take_profit']
+            })
+
+            cash -= row.Close * (1 + com) * parametros['n_shares']
+            operations_history.append((i, row.Close, "buy", parametros['n_shares']))
+
+        # Apply sell signals
+        if sell_signals.loc[i].any():
+            active_op_temp = []
+            for operation in active_operations:
+                if operation["take_profit"] < row.Close or operation["stop_loss"] > row.Close:
+                    cash += (row.Close * operation["n_shares"]) * (1 - com)
+                    operations_history.append((i, row.Close, "sell", operation["n_shares"]))
+                else:
+                    active_op_temp.append(operation)
+            active_operations = active_op_temp
+
+        asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
+        portfolio_value = cash + asset_vals
+        portfolio_values.append(portfolio_value)
+
+
+    return portfolio_values
+
+def estrategia_pasiva_simple(data, valor_inicial):
+  valor_final = valor_inicial * data["Close"][len(data) - 1] / data["Close"][0]
+
+  # Retorno de resultados
+  return valor_final
+
+
+
+
+
+
+def pasiveinversion_portvalue_plot2(portfolio_values, valor_ini, valor_fin):
+    plt.plot(portfolio_values, label='Portfolio Value')
+    indice = len(portfolio_values) - 1
+    plt.plot([0,indice], [valor_ini,valor_fin], label="Pasive_Strategy")
+    plt.xlabel('Indice')
+    plt.ylabel('Value')
+    plt.title('Estrategia Pasiva VS Estrategia Trading')
+    plt.legend()
+    plt.show()
+
+def port_value_plot2(portfolio_values):
+    periodo_tiempo = range(1, len(portfolio_values) + 1)
+    # Graficar los valores del portafolio
+    plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
+    # Etiquetas de los ejes
+    plt.xlabel('Indices')
+    plt.ylabel('Valor del Portafolio')
+    # Título del gráfico
+    plt.title('Evolución del Valor del Portafolio')
+    # Mostrar la gráfica
+    plt.grid(True)
+    plt.show()
+def pasive_portvalue_plot2(portfolio_values):
+    indice = len(portfolio_values) - 1
+
+    plt.plot(portfolio_values, label='Portfolio Value')
+    plt.plot([0,indice], [1000000,1000000], label="Pasive_Strategy")
+    plt.xlabel('Indice')
+    plt.ylabel('Value')
+    plt.title('Estrategia Pasiva VS Estrategia Trading')
+    plt.legend()
+    plt.show()
+
+file_path2 = "data/aapl_1m_test.csv"
+best_strat_params_1m = {
+    'stop_loss': 0.007096326133500339,
+    'take_profit': 0.022369560033715867,
+    'n_shares': 137,
+    'rsi_window': 32,
+    'rsi_upper': 75.26069658353647,
+    'rsi_lower': 7.6399173124408195
+}
+data_1m_test2 = pd.read_csv(file_path2)
+data_1m_test2 = data_1m_test2.dropna()
+portfolio_values2 = estrategia(data_1m_test2, best_strat_params_1m)
+data123 = pd.read_csv(file_path2)
+valor_final_pasivo = estrategia_pasiva_simple(data123, 1000000)
+port_v2 = port_value_plot2(portfolio_values2)
+passive_port2 = pasive_portvalue_plot2(portfolio_values2)
+market_in = pasiveinversion_portvalue_plot2(portfolio_values2, 1000000, valor_final_pasivo)
+
+
