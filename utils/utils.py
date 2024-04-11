@@ -546,4 +546,7 @@ port_v2 = port_value_plot2(portfolio_values2)
 passive_port2 = pasive_portvalue_plot2(portfolio_values2)
 market_in = pasiveinversion_portvalue_plot2(portfolio_values2, 1000000, valor_final_pasivo)
 
+def powerset(s):
+    return chain.from_iterable(combinations(s,r) for r in range(1,len(s)+1))
+
 
