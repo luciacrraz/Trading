@@ -2,10 +2,17 @@ import mplfinance as mpf
 import pandas as pd
 import ta
 import optuna
+import time
+import numpy as np
+from multiprocessing import Pool
 from itertools import combinations, chain
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score
 import warnings
 import matplotlib.pyplot as plt
 
@@ -122,15 +129,29 @@ def optimize_file(file_path: str):
             "params": best_params}
 
 
-
-def candle_chart(file_path: str):
-    warnings.filterwarnings("ignore")
+def plot_candle_chart(file_path):
+    # Leer el archivo CSV
     df = pd.read_csv(file_path)
-    df['Date'] = pd.to_datetime(df['Date'])  # Cambio aquí el nombre de la columna
-    df.set_index('Date', inplace=True)  # Cambio aquí el nombre de la columna
-    return mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
+    # Convertir el índice a tipo datetime si es necesario
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+    # Crear el gráfico de velas
+    mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
 
-def file_features(data, ds_type: str):
+
+def plot_candle_chart(file_path: str):
+    # Leer el archivo CSV
+    df = pd.read_csv(file_path)
+    # Convertir el índice a tipo datetime si es necesario
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+    # Crear el gráfico de velas
+    mpf.plot(df, type='candle', style='charles', title='Candlestick Chart', ylabel='Price')
+
+
+def file_features(data: str, ds_type: str):
+    data = pd.read_csv(data)
+    data = data.dropna()
     data1 = pd.DataFrame()
     # Calcular indicadores tecnicos
     cmf_data = ta.volume.ChaikinMoneyFlowIndicator(data.High, data.Low, data.Close, data.Volume, window=14)
@@ -156,7 +177,8 @@ def file_features(data, ds_type: str):
 
     return data1
 
-def buy_signals(data):
+
+def buy_signals_1d(data):
     buy_signals = pd.DataFrame()
     # Selecciona las características
     X = data.iloc[:, :-1]
@@ -164,10 +186,10 @@ def buy_signals(data):
     y = data.iloc[:, -1]
 
     # Crear modelos con los mejores parámetros encontrados para cada algoritmo
-    best_logistic_model = LogisticRegression(penalty='l2', C=0.010405629107406833, solver='liblinear')
-    best_svm_model = SVC(C=0.02891729617292502, kernel='linear', gamma='scale')
-    best_xgboost_model = XGBClassifier(n_estimators=300, max_depth=9, learning_rate=0.02572836520302602, subsample=0.8,
-                                       colsample_bytree=1.0)
+    best_logistic_model = LogisticRegression(penalty='l1', C=0.010968139046945382, solver='saga')
+    best_svm_model = SVC(C=0.43326595131065515, kernel='poly', degree=2, gamma='scale')
+    best_xgboost_model = XGBClassifier(n_estimators=200, max_depth=4, learning_rate=0.01737000818203036, subsample=0.6,
+                                       colsample_bytree=0.8)
 
     # Entrenar los modelos con todo el conjunto de datos original
     best_logistic_model.fit(X, y)
@@ -180,7 +202,6 @@ def buy_signals(data):
     predictions_xgboost = best_xgboost_model.predict(X)
     predictions_xgboost_bool = predictions_xgboost.astype(bool)
 
-
     # Agregar las predicciones como nuevas columnas al conjunto de datos original
     buy_signals['predicciones_lr'] = predictions_lr
     buy_signals['predicciones_svm'] = predictions_svm
@@ -188,7 +209,8 @@ def buy_signals(data):
 
     return buy_signals
 
-def sell_signals(data):
+
+def sell_signals_1d(data):
     sell_signals = pd.DataFrame()
     # Selecciona las características
     X = data.iloc[:, :-1]
@@ -196,9 +218,9 @@ def sell_signals(data):
     y = data.iloc[:, -1]
 
     # Crear modelos con los mejores parámetros encontrados para cada algoritmo
-    best_logistic_model = LogisticRegression(penalty='l1', C=0.002778605059659017, solver='saga')
-    best_svm_model = SVC(C=0.28120622947860485, kernel='rbf', gamma='auto')
-    best_xgboost_model = XGBClassifier(n_estimators=400, max_depth=3, learning_rate=0.11719371112820326, subsample=0.7,
+    best_logistic_model = LogisticRegression(penalty='l2', C=0.6431546383805156, solver='liblinear')
+    best_svm_model = SVC(C=0.0035454674239493874, kernel='rbf', gamma='scale')
+    best_xgboost_model = XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.030090107781624707, subsample=0.9,
                                        colsample_bytree=0.8)
 
     # Entrenar los modelos con todo el conjunto de datos original
@@ -219,6 +241,200 @@ def sell_signals(data):
 
     return sell_signals
 
+
+def buy_signals_1h(data):
+    buy_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l1', C=0.0021323714279392757, solver='saga')
+    best_svm_model = SVC(C=0.04584664364591048, kernel='poly', degree=2, gamma='auto')
+    best_xgboost_model = XGBClassifier(n_estimators=900, max_depth=9, learning_rate=0.2220589262776878, subsample=0.5,
+                                       colsample_bytree=0.7)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    buy_signals['predicciones_lr'] = predictions_lr
+    buy_signals['predicciones_svm'] = predictions_svm
+    buy_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return buy_signals
+
+
+def sell_signals_1h(data):
+    sell_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l2', C=0.0028315415752095535, solver='saga')
+    best_svm_model = SVC(C=0.2018232497206618, kernel='rbf', gamma='auto')
+    best_xgboost_model = XGBClassifier(n_estimators=100, max_depth=10, learning_rate=0.102602018285415, subsample=0.5,
+                                       colsample_bytree=0.6)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    sell_signals['predicciones_lr'] = predictions_lr
+    sell_signals['predicciones_svm'] = predictions_svm
+    sell_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return sell_signals
+
+
+def buy_signals_1m(data):
+    buy_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l2', C=0.0015827990076342706, solver='saga')
+    best_svm_model = SVC(C=208.31110635195978, kernel='rbf', gamma='auto')
+    best_xgboost_model = XGBClassifier(n_estimators=200, max_depth=8, learning_rate=0.016335181464666, subsample=0.6,
+                                       colsample_bytree=0.5)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    buy_signals['predicciones_lr'] = predictions_lr
+    buy_signals['predicciones_svm'] = predictions_svm
+    buy_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return buy_signals
+
+
+def sell_signals_1m(data):
+    sell_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l2', C=0.002105767490569824, solver='saga')
+    best_svm_model = SVC(C=89.33147882881373, kernel='linear')
+    best_xgboost_model = XGBClassifier(n_estimators=400, max_depth=3, learning_rate=0.061659645644687434, subsample=0.8,
+                                       colsample_bytree=0.7)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    sell_signals['predicciones_lr'] = predictions_lr
+    sell_signals['predicciones_svm'] = predictions_svm
+    sell_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return sell_signals
+
+
+def buy_signals_5m(data):
+    buy_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l2', C=0.002395829495054093, solver='liblinear')
+    best_svm_model = SVC(C=0.002176996974479978, kernel='sigmoid', gamma='scale')
+    best_xgboost_model = XGBClassifier(n_estimators=1000, max_depth=9, learning_rate=0.014804455005781484,
+                                       subsample=0.9,
+                                       colsample_bytree=0.7)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    buy_signals['predicciones_lr'] = predictions_lr
+    buy_signals['predicciones_svm'] = predictions_svm
+    buy_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return buy_signals
+
+
+def sell_signals_5m(data):
+    sell_signals = pd.DataFrame()
+    # Selecciona las características
+    X = data.iloc[:, :-1]
+    # Selecciona la variable objetivo
+    y = data.iloc[:, -1]
+
+    # Crear modelos con los mejores parámetros encontrados para cada algoritmo
+    best_logistic_model = LogisticRegression(penalty='l1', C=0.0030591725482995644, solver='saga')
+    best_svm_model = SVC(C=0.6739747156890435, kernel='linear')
+    best_xgboost_model = XGBClassifier(n_estimators=900, max_depth=9, learning_rate=0.08242884326336312, subsample=0.5,
+                                       colsample_bytree=1.0)
+
+    # Entrenar los modelos con todo el conjunto de datos original
+    best_logistic_model.fit(X, y)
+    best_svm_model.fit(X, y)
+    best_xgboost_model.fit(X, y)
+
+    # Realizar predicciones en el conjunto de datos original
+    predictions_lr = best_logistic_model.predict(X)
+    predictions_svm = best_svm_model.predict(X)
+    predictions_xgboost = best_xgboost_model.predict(X)
+    predictions_xgboost_bool = predictions_xgboost.astype(bool)
+
+    # Agregar las predicciones como nuevas columnas al conjunto de datos original
+    sell_signals['predicciones_lr'] = predictions_lr
+    sell_signals['predicciones_svm'] = predictions_svm
+    sell_signals['predicciones_xgboost'] = predictions_xgboost_bool
+
+    return sell_signals
+
+
 def plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_long):
     buy_sell_xgboost = pd.DataFrame()
     buy_sell_xgboost['pred_xg_buy'] = global_buy_signals['predicciones_xgboost']
@@ -226,14 +442,26 @@ def plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_lon
     buy_sell_xgboost['Close'] = data_test_long['Close_Lag0']
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(buy_sell_xgboost['Close'], label='Precio de Cierre', color='black')
-    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_buy']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_buy']], marker='^', color='r', label='Compra')
-    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_sell']], buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_sell']], marker='v', color='g', label='Venta')
+    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_buy']],
+               buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_buy']], marker='^', color='r', label='Compra')
+    ax.scatter(buy_sell_xgboost.index[buy_sell_xgboost['pred_xg_sell']],
+               buy_sell_xgboost['Close'][buy_sell_xgboost['pred_xg_sell']], marker='v', color='g', label='Venta')
     ax.set_title('Señales de Compra y Venta')
     ax.set_xlabel('Índice de Tiempo')
     ax.set_ylabel('Precio')
     ax.legend()
     plt.grid(True)
     plt.show()
+
+
+def data_fun(file_path: str):
+    data = pd.read_csv(file_path)
+    data = data.dropna()
+    data = data.drop(data.index[:30])
+    data = data.drop(data.index[-30:])
+    data.reset_index(drop=True, inplace=True)
+    return data
+
 
 def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
     history = []
@@ -296,13 +524,6 @@ def backtest(data, buy_signals, sell_signals, stop_loss, take_profit, n_shares):
 
     return portfolio_values, cash_values, operations_history
 
-def data_fun(file_path: str):
-    data = pd.read_csv(file_path)
-    data = data.dropna()
-    data = data.drop(data.index[:30])
-    data = data.drop(data.index[-30:])
-    data.reset_index(drop=True, inplace=True)
-    return data
 
 def plot_operations_history(operations_history):
     data = operations_history[:35]
@@ -326,224 +547,124 @@ def plot_operations_history(operations_history):
     plt.grid(True)
     plt.show()
 
+
 def port_value_plot(portfolio_values):
     periodo_tiempo = range(1, len(portfolio_values) + 1)
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Indices')
+    plt.xlabel('Periodo de Tiempo')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Evolución del Valor del Portafolio')
     # Mostrar la gráfica
     plt.grid(True)
     plt.show()
+
 
 def plot_cash(cash_values):
     periodo_tiempo = range(1, len(cash_values) + 1)
     # Graficar los valores del portafolio
     plt.plot(periodo_tiempo, cash_values, marker='o', linestyle='-')
     # Etiquetas de los ejes
-    plt.xlabel('Operaciones')
+    plt.xlabel('Periodo de Tiempo')
     plt.ylabel('Valor del Portafolio')
     # Título del gráfico
     plt.title('Dinero atraves del Tiempo')
     # Mostrar la gráfica
     plt.grid(True)
-    plt.show()
+
 
 def cash_portvalue_plot(cash_values, portfolio_values):
     plt.plot(cash_values, label='Cash')
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.xlabel('Tiempo')
+    plt.xlabel('Time')
     plt.ylabel('Value')
     plt.title('Cash and Portfolio Value over Time')
     plt.legend()
     plt.show()
 
 
-
-
-
 def pasive_portvalue_plot(portfolio_values):
-    indice = len(portfolio_values) - 1
-
     plt.plot(portfolio_values, label='Portfolio Value')
-    plt.plot([0,indice], [1000000,1000000], label="Pasive_Strategy")
-    plt.xlabel('Indice')
+    plt.plot([0, len(portfolio_values)], [1000000, 1000000], label="Pasive_Strategy")
+    plt.xlabel('Time')
     plt.ylabel('Value')
     plt.title('Estrategia Pasiva VS Estrategia Trading')
     plt.legend()
     plt.show()
 
-file_path = "data/aapl_1d_test.csv"
-# explicar el data set
-data_1m_test = pd.read_csv(file_path)
-data_1m_test = data_1m_test.dropna()
-# grafica de vela del precio close sin hacer nada
-candle_test = candle_chart(file_path)
-# variables que usamos para la prediccion
-data_test_long = file_features(data_1m_test, ds_type="buy")
-data_test_buy = file_features(data_1m_test, ds_type="sell")
-# dataframes de senales de compra
-global_buy_signals = buy_signals(data_test_long)
-global_sell_signals = sell_signals(data_test_buy)
-# grafica de compra venta conforme al precio de cierre
-plot_buy_sell_signals(global_buy_signals, global_sell_signals, data_test_long)
-#data para el backtest
-data_1m = data_fun(file_path)
-# valores del portafolio, dinero y parametros
-portfolio_values, cash_values, operations_history,  = backtest(data_1m, global_buy_signals["predicciones_xgboost"], global_sell_signals["predicciones_xgboost"], 0.88, 1.05, 39)
-# grafica con las operaciones
-plot_operations = plot_operations_history(operations_history)
-# grafica con el dinero atraves del tiempo
-cash_plot = plot_cash(cash_values)
-#grafica con el valor del portafolio atraves del tiempo
-plot_port_value = port_value_plot(portfolio_values)
-# grafica comparando el dinero con el portafolio
-cash_port = cash_portvalue_plot(cash_values, portfolio_values)
-#comparacion con estrategia pasiva:
-comparacion = pasive_portvalue_plot(portfolio_values)
+# Aplicando las funciones....
+plot_candle_chart("../data/aapl_1d_test.csv")
+plot_candle_chart("../data/aapl_1h_test.csv")
+plot_candle_chart("../data/aapl_1m_test.csv")
+plot_candle_chart("../data/aapl_5m_test.csv")
 
-#Definición de función para uso de la estrategia con los mejores parametros por métrica de tiempo
+dataresult_long_1d_test = file_features("../data/aapl_1d_test.csv", ds_type="buy")
+dataresult_long_1d_test = dataresult_long_1d_test.dropna()
+dataresult_long_1h_test = file_features("../data/aapl_1h_test.csv", ds_type="buy")
+dataresult_long_1h_test = dataresult_long_1h_test.dropna()
+dataresult_long_1m_test = file_features("../data/aapl_1m_test.csv", ds_type="buy")
+dataresult_long_1m_test = dataresult_long_1m_test.dropna()
+dataresult_long_5m_test = file_features("../data/aapl_5m_test.csv", ds_type="buy")
+dataresult_long_5m_test = dataresult_long_5m_test.dropna()
+dataresult_short_1d_test = file_features("../data/aapl_1d_test.csv", ds_type="sell")
+dataresult_short_1d_test = dataresult_short_1d_test.dropna()
+dataresult_short_1h_test = file_features("../data/aapl_1h_test.csv", ds_type="sell")
+dataresult_short_1h_test = dataresult_short_1h_test.dropna()
+dataresult_short_1m_test = file_features("../data/aapl_1m_test.csv", ds_type="sell")
+dataresult_short_1m_test = dataresult_short_1m_test.dropna()
+dataresult_short_5m_test = file_features("../data/aapl_5m_test.csv", ds_type="sell")
+dataresult_short_5m_test = dataresult_short_5m_test.dropna()
 
+global_buy_signals_1d_long = buy_signals_1d(dataresult_long_1d_test)
+global_sell_signals_1d_short = sell_signals_1d(dataresult_short_1d_test)
+global_buy_signals_1h_long = buy_signals_1h(dataresult_long_1h_test)
+global_sell_signals_1h_short = sell_signals_1h(dataresult_short_1h_test)
+global_buy_signals_1m_long = buy_signals_1m(dataresult_long_1m_test)
+global_sell_signals_1m_short = sell_signals_1m(dataresult_short_1m_test)
+global_buy_signals_5m_long = buy_signals_5m(dataresult_long_5m_test)
+global_sell_signals_5m_short = sell_signals_5m(dataresult_short_5m_test)
 
-def rsi_signals(data, rsi_window, rsi_upper, rsi_lower):
-    indicator_rsi = ta.momentum.RSIIndicator(close=data["Close"], window=rsi_window)
-    buy_signal = indicator_rsi.rsi() < rsi_lower
-    sell_signal = indicator_rsi.rsi() > rsi_upper
-    return buy_signal, sell_signal
+plot_buy_sell_signals(global_buy_signals_1d_long, global_sell_signals_1d_short, dataresult_short_1d_test)
+plot_buy_sell_signals(global_buy_signals_1h_long, global_sell_signals_1h_short, dataresult_short_1h_test)
+plot_buy_sell_signals(global_buy_signals_1m_long, global_sell_signals_1m_short, dataresult_short_1m_test)
+plot_buy_sell_signals(global_buy_signals_5m_long, global_sell_signals_5m_short, dataresult_short_5m_test)
 
+data_1d = data_fun("../data/aapl_1d_test.csv")
+data_1h = data_fun("../data/aapl_1h_test.csv")
+data_1m = data_fun("../data/aapl_1m_test.csv")
+data_5m = data_fun("../data/aapl_5m_test.csv")
 
-def estrategia(file_path, parametros):
-    data = pd.read_csv(file_path2)
-    data = data.dropna()
-    buy_signals = pd.DataFrame()
-    sell_signals = pd.DataFrame()
-    #Generamos señales de compra/venta
-    rsi = ta.momentum.RSIIndicator(close=data['Close'], window=parametros['rsi_window'])
-    buy_signals = rsi.rsi() < parametros['rsi_lower']
-    sell_signals = rsi.rsi() > parametros['rsi_upper']
-    history = []
-    active_operations = []
-    cash = 1_000_000
-    com = 1.25 / 100
-    portfolio_values = []
-    cash_values = []
-    operations_history = []
+portfolio_values_1d, cash_values_1d, operations_history_1d = backtest(data_1d, global_buy_signals_1d_long, global_sell_signals_1d_short, 0.8260391440506059, 1.0994972027471122, 43)
+portfolio_values_1h, cash_values_1h, operations_history_1h = backtest(data_1h, global_buy_signals_1h_long, global_sell_signals_1h_short, 0.8045410770677325, 1.0999994091707832, 50)
+portfolio_values_1m, cash_values_1m, operations_history_1m = backtest(data_1m, global_buy_signals_1m_long, global_sell_signals_1m_short, 0.8246899075687136, 1.0966755803337889, 47)
+portfolio_values_5m, cash_values_5m, operations_history_5m = backtest(data_5m, global_buy_signals_5m_long, global_sell_signals_5m_short, 0.8412379579141974, 1.0997899401664173, 29)
 
-    for i, row in data.iterrows():
-        # close active operation
-        active_op_temp = []
-        for operation in active_operations:
-            if operation["stop_loss"] > row.Close:
-                cash += (row.Close * operation["n_shares"]) * (1 - com)
-                operations_history.append((i, row.Close, "stop_loss", operation[parametros["n_shares"]]))
-            elif operation["take_profit"] < row.Close:
-                cash += (row.Close * operation["n_shares"]) * (1 - com)
-                operations_history.append((i, row.Close, parametros["take_profit"], operation["n_shares"]))
-            else:
-                active_op_temp.append(operation)
-        active_operations = active_op_temp
+plot_operations_history(operations_history_1d)
+plot_operations_history(operations_history_1h)
+plot_operations_history(operations_history_1m)
+plot_operations_history(operations_history_5m)
 
-        # check if we have enough cash
-        if cash < (row.Close * (1 + com)):
-            asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
-            portfolio_value = cash + asset_vals
-            portfolio_values.append(portfolio_value)
-            cash_values.append(cash)
-            continue
+port_value_plot(portfolio_values_1d)
+port_value_plot(portfolio_values_1h)
+port_value_plot(portfolio_values_1m)
+port_value_plot(portfolio_values_5m)
 
-        # Apply buy signals
-        if buy_signals.loc[i].any():
-            active_operations.append({
-                "bought": row.Close,
-                "n_shares": parametros['n_shares'],
-                "stop_loss": row.Close * parametros['stop_loss'],
-                "take_profit": row.Close * parametros['take_profit']
-            })
+plot_cash(cash_values_1d)
+plot_cash(cash_values_1h)
+plot_cash(cash_values_1m)
+plot_cash(cash_values_5m)
 
-            cash -= row.Close * (1 + com) * parametros['n_shares']
-            operations_history.append((i, row.Close, "buy", parametros['n_shares']))
+cash_portvalue_plot(cash_values_1d, portfolio_values_1d)
+cash_portvalue_plot(cash_values_1h, portfolio_values_1h)
+cash_portvalue_plot(cash_values_1m, portfolio_values_1m)
+cash_portvalue_plot(cash_values_5m, portfolio_values_5m)
 
-        # Apply sell signals
-        if sell_signals.loc[i].any():
-            active_op_temp = []
-            for operation in active_operations:
-                if operation["take_profit"] < row.Close or operation["stop_loss"] > row.Close:
-                    cash += (row.Close * operation["n_shares"]) * (1 - com)
-                    operations_history.append((i, row.Close, "sell", operation["n_shares"]))
-                else:
-                    active_op_temp.append(operation)
-            active_operations = active_op_temp
+pasive_portvalue_plot(portfolio_values_1d)
+pasive_portvalue_plot(portfolio_values_1h)
+pasive_portvalue_plot(portfolio_values_1m)
+pasive_portvalue_plot(portfolio_values_5m)
 
-        asset_vals = sum([operation["n_shares"] * row.Close for operation in active_operations])
-        portfolio_value = cash + asset_vals
-        portfolio_values.append(portfolio_value)
-
-
-    return portfolio_values
-
-def estrategia_pasiva_simple(data, valor_inicial):
-  valor_final = valor_inicial * data["Close"][len(data) - 1] / data["Close"][0]
-
-  # Retorno de resultados
-  return valor_final
-
-
-
-
-
-
-def pasiveinversion_portvalue_plot2(portfolio_values, valor_ini, valor_fin):
-    plt.plot(portfolio_values, label='Portfolio Value')
-    indice = len(portfolio_values) - 1
-    plt.plot([0,indice], [valor_ini,valor_fin], label="Pasive_Strategy")
-    plt.xlabel('Indice')
-    plt.ylabel('Value')
-    plt.title('Estrategia Pasiva VS Estrategia Trading')
-    plt.legend()
-    plt.show()
-
-def port_value_plot2(portfolio_values):
-    periodo_tiempo = range(1, len(portfolio_values) + 1)
-    # Graficar los valores del portafolio
-    plt.plot(periodo_tiempo, portfolio_values, marker='o', linestyle='-')
-    # Etiquetas de los ejes
-    plt.xlabel('Indices')
-    plt.ylabel('Valor del Portafolio')
-    # Título del gráfico
-    plt.title('Evolución del Valor del Portafolio')
-    # Mostrar la gráfica
-    plt.grid(True)
-    plt.show()
-def pasive_portvalue_plot2(portfolio_values):
-    indice = len(portfolio_values) - 1
-
-    plt.plot(portfolio_values, label='Portfolio Value')
-    plt.plot([0,indice], [1000000,1000000], label="Pasive_Strategy")
-    plt.xlabel('Indice')
-    plt.ylabel('Value')
-    plt.title('Estrategia Pasiva VS Estrategia Trading')
-    plt.legend()
-    plt.show()
-
-file_path2 = "data/aapl_1m_test.csv"
-best_strat_params_1m = {
-    'stop_loss': 0.007096326133500339,
-    'take_profit': 0.022369560033715867,
-    'n_shares': 137,
-    'rsi_window': 32,
-    'rsi_upper': 75.26069658353647,
-    'rsi_lower': 7.6399173124408195
-}
-data_1m_test2 = pd.read_csv(file_path2)
-data_1m_test2 = data_1m_test2.dropna()
-portfolio_values2 = estrategia(data_1m_test2, best_strat_params_1m)
-data123 = pd.read_csv(file_path2)
-valor_final_pasivo = estrategia_pasiva_simple(data123, 1000000)
-port_v2 = port_value_plot2(portfolio_values2)
-passive_port2 = pasive_portvalue_plot2(portfolio_values2)
-market_in = pasiveinversion_portvalue_plot2(portfolio_values2, 1000000, valor_final_pasivo)
 
 
