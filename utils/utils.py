@@ -667,4 +667,3 @@ pasive_portvalue_plot(portfolio_values_1m)
 pasive_portvalue_plot(portfolio_values_5m)
 
 
-
