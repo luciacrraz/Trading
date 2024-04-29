@@ -116,3 +116,11 @@ wcwidth @ file:///Users/ktietz/demo/mc3/conda-bld/wcwidth_1629357192024/work
 webencodings==0.5.1
 websocket-client @ file:///Users/ec2-user/ci_py311/websocket-client_1678317758506/work
 widgetsnbextension @ file:///private/var/folders/sy/f16zz6x50xz3113nwtb9bvq00000gp/T/abs_8feupjw2ld/croot/widgetsnbextension_1679313870305/work
+
+mplfinance~=0.12.10b0
+pandas~=2.1.4
+numpy~=1.26.4
+tensorflow~=2.16.1
+scikit-learn~=1.4.1.post1
+xgboost~=2.0.3
+gymnasium~=0.28.1
