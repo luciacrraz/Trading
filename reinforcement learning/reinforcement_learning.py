@@ -1,6 +1,10 @@
 from collections import deque
 
-import gymnasium as gym
+import gym
+from gym.envs.registration import register
+from gymnasium import spaces
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
 import numpy as np
 import tensorflow as tf
 from gymnasium.wrappers import AtariPreprocessing, FrameStack
@@ -138,7 +142,7 @@ class TransposeLayer(tf.keras.layers.Layer):
 
 class DQAgent:
 
-    def __init__(self, env_name: str, max_iters: int = 10, max_steps: int = 10_000,
+    def __init__(self, df, env_name: str, max_iters: int = 10, max_steps: int = 10_000,
                  gamma: float = 0.9, epsilon: float = 1, epsilon_min: float = 0.1, epsilon_max: float = 1,
                  batch_size: int = 32, learning_rate: float = 0.00025, history_len: int = 100_000, **kwargs) -> None:
         self.env = gym.make(env_name, **kwargs)
@@ -329,18 +333,14 @@ class DQAgent:
 
         return r
 
+register(
+    id='TradingEnv',
+    entry_point='reinforcement_learning:TradingEnv',)
 
 if __name__ == "__main__":
     tf.keras.config.enable_unsafe_deserialization()
-
-    # Load your dataframe for the TradingEnv
-    df = pd.read_csv('aap.csv')
-
-    # Create the TradingEnv
+    df = pd.read_csv("data/aapl_5m_train.csv")
     env = TradingEnv(df)
-
-    # Create the DQAgent
-    agent = DQAgent(env)
-
-    # Train the agent
+    env_name = 'TradingEnv'
+    agent = DQAgent(df, env_name)
     agent.train()
